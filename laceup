@@ -1,0 +1,80 @@
+#!/bin/bash
+list_windows_users() {
+  # Find user directories under /mnt/c/Users, excluding common ones
+  users=$(find /mnt/c/Users/* -maxdepth 0 -type d -not \
+    \( -name "All Users" -o -name "Default" -o -name "Default User" -o -name "Public" \) \
+    -exec basename {} \;)
+
+  # Print the list of users
+  echo "Available Windows Users:"
+  for user in $users; do
+    echo "$user"
+  done
+}
+
+
+select_windows_user() {
+  # Ask the user to select a Windows user
+  read -p "Select a Windows user from the list above: " selected_user
+
+  # Check if the selected user exists
+  if [ -d "/mnt/c/Users/$selected_user" ]; then
+    echo "You selected: $selected_user"
+  else
+    echo "Invalid user selection. Please choose a valid user."
+    exit 1
+  fi
+}
+
+
+copy_and_sanitize_keys() {
+  # Set the source and destination paths
+  source_folder="/mnt/c/Users/$selected_user/Downloads"
+  ubuntu_ssh_folder="$HOME/.ssh"
+
+  # Ensure the destination folder exists
+  if [ ! -d "$ubuntu_ssh_folder" ]; then
+    mkdir "$ubuntu_ssh_folder"
+    chmod 700 "$ubuntu_ssh_folder"
+  fi
+
+  
+  if [ -f "$source_folder/id_ed25519" ]; then
+    sed 's/\r$//' < "$source_folder/id_ed25519" > "$ubuntu_ssh_folder/id_ed25519"
+    chmod 600 "$ubuntu_ssh_folder/id_ed25519"
+    echo "Private key copied to $ubuntu_ssh_folder/id_ed25519"
+  else
+    echo "Private key not found in $source_folder"
+  fi
+
+  
+  if [ -f "$source_folder/id_ed25519.pub" ]; then
+    sed 's/\r$//' < "$source_folder/id_ed25519.pub" > "$ubuntu_ssh_folder/id_ed25519.pub"
+    chmod 644 "$ubuntu_ssh_folder/id_ed25519.pub"
+    echo "Public key copied to $ubuntu_ssh_folder/id_ed25519.pub"
+  else
+    echo "Public key not found in $source_folder"
+  fi
+}
+
+create_config(){
+  #Install config
+  touch ~/.ssh/config
+  if ! grep -Fxq "ControlMaster auto" ~/.ssh/config; then
+    echo "ControlMaster auto" >> ~/.ssh/config
+  fi
+  if ! grep -Fxq "ControlPath ~/.ssh/%r@%h:%p" ~/.ssh/config; then
+    echo "ControlPath ~/.ssh/%r@%h:%p" >> ~/.ssh/config
+  fi
+}
+
+inform() {
+  echo "This process is not complete. Closing terminal in"
+  for ((i=5; i>=1; i--)); do
+    echo "$i..."
+    sleep 1
+  done
+  exit
+}
+
+list_windows_users && select_windows_user && copy_and_sanitize_keys && create_config && inform  
